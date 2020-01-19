@@ -4,9 +4,9 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #if os(iOS) || os(watchOS) || os(tvOS)
-import UIKit
+    import UIKit
 #elseif os(OSX)
-import AppKit
+    import AppKit
 #endif
 
 internal struct InvalidThemeError: Error {
@@ -33,18 +33,18 @@ public class ThemeManager {
 
     // NotificationCenter used for broadcasting theme changes
     private var notificationCenter: NotificationCenter = .init()
-    
+
     // For appearance hack (see below), only accessible in iOS Applications
     #if os(iOS)
-    private let optionalSharedApplication: UIApplication? = {
-        let sharedSelector = NSSelectorFromString("sharedApplication")
-        guard UIApplication.responds(to: sharedSelector) else {
-            // Extensions cannot access UIApplication
-            return nil
-        }
-        let shared = UIApplication.perform(sharedSelector)
-        return shared?.takeUnretainedValue() as? UIApplication
-    }()
+        private let optionalSharedApplication: UIApplication? = {
+            let sharedSelector = NSSelectorFromString("sharedApplication")
+            guard UIApplication.responds(to: sharedSelector) else {
+                // Extensions cannot access UIApplication
+                return nil
+            }
+            let shared = UIApplication.perform(sharedSelector)
+            return shared?.takeUnretainedValue() as? UIApplication
+        }()
     #endif
 
     /// The current theme.
@@ -54,31 +54,31 @@ public class ThemeManager {
     public var theme: Theme? {
         willSet {
             #if DEBUG
-            guard let currentValue = self.theme else {
-                return
-            }
-            guard let newValue = newValue else {
-                return
-            }
-            let currentThemeType = type(of: currentValue)
-            let newThemeType = type(of: newValue)
-            if currentThemeType != newThemeType {
-                typealias ErrorType = InvalidThemeError
-                let errorName = String(describing: ErrorType.self)
-                let expected = String(describing: currentThemeType)
-                let found = String(describing: newThemeType)
-                print("\(self): Expected theme of type \(expected), found: \(found).")
-                print("Info: Use a \"Swift Error Breakpoint\" on type \"Gestalt.\(errorName)\" to catch.")
-                do {
-                    throw ErrorType()
-                } catch {
-                    // intentionally left blank
+                guard let currentValue = self.theme else {
+                    return
                 }
-            }
+                guard let newValue = newValue else {
+                    return
+                }
+                let currentThemeType = type(of: currentValue)
+                let newThemeType = type(of: newValue)
+                if currentThemeType != newThemeType {
+                    typealias ErrorType = InvalidThemeError
+                    let errorName = String(describing: ErrorType.self)
+                    let expected = String(describing: currentThemeType)
+                    let found = String(describing: newThemeType)
+                    print("\(self): Expected theme of type \(expected), found: \(found).")
+                    print("Info: Use a \"Swift Error Breakpoint\" on type \"Gestalt.\(errorName)\" to catch.")
+                    do {
+                        throw ErrorType()
+                    } catch {
+                        // intentionally left blank
+                    }
+                }
             #endif
         }
         didSet {
-            self.notify()
+            notify()
         }
     }
 
@@ -91,12 +91,10 @@ public class ThemeManager {
     ///   It should cover 99% of your use-cases.
     public init() {
         #if os(iOS) || os(tvOS)
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(ThemeManager.handleDynamicTypeChange(_:)),
-            name: UIContentSizeCategory.didChangeNotification,
-            object: nil
-        )
+            NotificationCenter.default.addObserver(self,
+                                                   selector: #selector(ThemeManager.handleDynamicTypeChange(_:)),
+                                                   name: UIContentSizeCategory.didChangeNotification,
+                                                   object: nil)
         #endif
     }
 
@@ -105,14 +103,11 @@ public class ThemeManager {
     /// - Parameters:
     ///   - theme: `themeable`'s sub-theme's key-path relative to the Manager's current theme to apply
     ///   - themeable: the object to have the theme applied to
-    public func manage<T, U>(
-        theme keyPath: KeyPath<T, U.Theme>,
-        for themeable: U
-    )
-        where T: Gestalt.Theme, U: Themeable
-    {
+    public func manage<T, U>(theme keyPath: KeyPath<T, U.Theme>,
+                             for themeable: U)
+        where T: Gestalt.Theme, U: Themeable {
         let identifier = ObjectIdentifier(themeable)
-        if self.observations.contains(identifier) {
+        if observations.contains(identifier) {
             typealias ErrorType = RedundantObservationError
             let errorName = String(describing: ErrorType.self)
             let description = String(describing: themeable)
@@ -124,9 +119,9 @@ public class ThemeManager {
                 // intentionally left blank
             }
         }
-        self.observations.insert(identifier)
+        observations.insert(identifier)
 
-        let disposable = self.observe(theme: T.self) { [weak themeable] theme in
+        let disposable = observe(theme: T.self) { [weak themeable] theme in
             guard let strongThemeable = themeable else {
                 return
             }
@@ -134,12 +129,10 @@ public class ThemeManager {
         }
 
         var associatedObjectKey = ObjectIdentifier(ThemeManager.self)
-        objc_setAssociatedObject(
-            themeable,
-            &associatedObjectKey,
-            disposable,
-            .OBJC_ASSOCIATION_RETAIN_NONATOMIC
-        )
+        objc_setAssociatedObject(themeable,
+                                 &associatedObjectKey,
+                                 disposable,
+                                 .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 
     /// Provides automated theme notification via `closure`.
@@ -153,36 +146,33 @@ public class ThemeManager {
     ///      must be guarded by `[weak ...]` to avoid retain cycles.
     ///   2. The body of `closure` should be [idempotent](https://en.wikipedia.org/wiki/Idempotence)
     ///      to avoid unwanted side-effects on repeated calls.
-    public func observe<T>(
-        theme: T.Type,
-        closure: @escaping (T) -> ()
-    ) -> Disposable
-        where T: Gestalt.Theme
-    {
+    public func observe<T>(theme: T.Type,
+                           closure: @escaping (T) -> Void) -> Disposable
+        where T: Gestalt.Theme {
         #if DEBUG
-        if let currentTheme = self.theme, type(of: currentTheme) != theme {
-            typealias ErrorType = InvalidThemeError
-            let errorName = String(describing: ErrorType.self)
-            let expected = String(describing: type(of: currentTheme))
-            let found = String(describing: theme)
-            print("\(self): Expected observation of type \(expected), found: \(found).")
-            print("Info: Use a \"Swift Error Breakpoint\" on type \"Gestalt.\(errorName)\" to catch.")
-            do {
-                throw ErrorType()
-            } catch {
-                // intentionally left blank
+            if let currentTheme = self.theme, type(of: currentTheme) != theme {
+                typealias ErrorType = InvalidThemeError
+                let errorName = String(describing: ErrorType.self)
+                let expected = String(describing: type(of: currentTheme))
+                let found = String(describing: theme)
+                print("\(self): Expected observation of type \(expected), found: \(found).")
+                print("Info: Use a \"Swift Error Breakpoint\" on type \"Gestalt.\(errorName)\" to catch.")
+                do {
+                    throw ErrorType()
+                } catch {
+                    // intentionally left blank
+                }
             }
-        }
         #endif
 
-		let observer = ThemeObserver { theme in
+        let observer = ThemeObserver { theme in
             guard let theme = theme as? T else {
                 return
             }
             closure(theme)
         }
 
-        self.add(observer: observer)
+        add(observer: observer)
 
         if let theme = self.theme as? T {
             closure(theme)
@@ -198,11 +188,9 @@ public class ThemeManager {
     }
 
     private func add(observer: ThemeObserver) {
-        self.notificationCenter.addObserver(
-            forName: ThemeManager.notificationName,
-            object: self,
-            queue: OperationQueue.main
-        ) { [weak observer] notification in
+        notificationCenter.addObserver(forName: ThemeManager.notificationName,
+                                       object: self,
+                                       queue: OperationQueue.main) { [weak observer] notification in
             guard let themeManager = notification.object as? ThemeManager else {
                 return
             }
@@ -214,11 +202,9 @@ public class ThemeManager {
     }
 
     private func remove(observer: ThemeObserver) {
-        self.notificationCenter.removeObserver(
-            observer,
-            name: ThemeManager.notificationName,
-            object: self
-        )
+        notificationCenter.removeObserver(observer,
+                                          name: ThemeManager.notificationName,
+                                          object: self)
     }
 
     private func notify() {
@@ -226,42 +212,55 @@ public class ThemeManager {
             guard let strongSelf = self else {
                 return
             }
-            strongSelf.notificationCenter.post(
-                name: ThemeManager.notificationName,
-                object: strongSelf
-            )
+            strongSelf.notificationCenter.post(name: ThemeManager.notificationName,
+                                               object: strongSelf)
 
             // NotificationCenter notifies its observers
             // synchronously, so we do not need to wait:
 
             #if os(iOS)
-            // HACK: apparently the only way to
-            // change the appearance of existing instances:
-            if let sharedApplication = self?.optionalSharedApplication {
-                for window in sharedApplication.windows {
-                    for view in window.subviews {
-                        view.removeFromSuperview()
-                        window.addSubview(view)
+                // HACK: apparently the only way to
+                // change the appearance of existing instances:
+                if let sharedApplication = self?.optionalSharedApplication {
+                    for window in sharedApplication.windows {
+                        guard "\(type(of: window))" != "UIRemoteKeyboardWindow", "\(type(of: window))" != "UITextEffectsWindow" else {
+                            continue
+                        }
+
+                        print(String(describing: type(of: window)))
+                        for view in window.subviews {
+                            guard "\(type(of: view))" != "UIInputSetContainerView", !view.isFirstResponder, "\(type(of: view))" != "UITransitionView" else {
+                                continue
+                            }
+                            if "\(type(of: view))" != "UIInputSetContainerView" {
+                                print(1)
+                            } else {
+                                print(2)
+                            }
+
+                            print(String(describing: type(of: view)))
+                            view.removeFromSuperview()
+                            window.addSubview(view)
+                        }
                     }
                 }
-            }
             #endif
         }
     }
 
-    internal func animated(duration: TimeInterval, closure: @escaping () -> ()) {
+    internal func animated(duration: TimeInterval, closure: @escaping () -> Void) {
         #if os(iOS)
-        UIView.animate(withDuration: duration) {
-            closure()
-        }
+            UIView.animate(withDuration: duration) {
+                closure()
+            }
         #else
-        closure()
+            closure()
         #endif
     }
 
     @available(iOS 7, *)
     @objc private func handleDynamicTypeChange(_ notification: Notification) {
-        self.notify()
+        notify()
     }
 }
 
